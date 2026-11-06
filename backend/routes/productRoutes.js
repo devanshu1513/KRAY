@@ -329,8 +329,18 @@ router.get("/best-seller", async (req, res) => {
 // @access Public
 router.get("/new-arrivals", async (req, res) => {
     try {
-        // Fetch the 8 most recently created products
-        const newArrivals = await Product.find().sort({ createdAt: -1 }).limit(8);
+        // Keep this homepage rail representative across genders and departments,
+        // rather than letting a batch import fill it with one category.
+        const groups = await Promise.all([
+            ["Men", "Top Wear"],
+            ["Women", "Top Wear"],
+            ["Men", "Bottom Wear"],
+            ["Women", "Bottom Wear"],
+        ].map(([gender, category]) => Product.find({ gender, category, countInStock: { $gt: 0 } })
+            .sort({ createdAt: -1, rating: -1 })
+            .limit(2)
+            .lean()));
+        const newArrivals = groups.flat();
         res.json(newArrivals);
     } catch (error) {
         console.log(error);

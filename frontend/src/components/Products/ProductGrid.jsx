@@ -4,10 +4,16 @@ import { getEffectivePrice, hasDiscount, formatINR } from "../../utils/price";
 
 const ProductGrid = ({ products, loading, error }) => {
     const { pathname, search } = useLocation();
+    const colorValues = {
+        black: "#171717", white: "#fff", red: "#dc2626", blue: "#2563eb", navy: "#172554",
+        "navy blue": "#172554", "light blue": "#93c5fd", gray: "#9ca3af", grey: "#9ca3af",
+        charcoal: "#404040", beige: "#d8c7a1", cream: "#f4ead4", brown: "#795548", green: "#23834a",
+        olive: "#657344", pink: "#ec9db2", yellow: "#facc15", purple: "#7e22ce", lavender: "#a78bfa",
+    };
 
     if (loading) {
         return (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-6 xl:grid-cols-4 xl:gap-x-5">
                 {[...Array(8)].map((_, index) => (
                     <div key={index} className="animate-pulse">
                         <div className="w-full aspect-[4/5] rounded-xl bg-stone-200"></div>
@@ -50,34 +56,51 @@ const ProductGrid = ({ products, loading, error }) => {
     }
 
     return (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-10">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-6 xl:grid-cols-4 xl:gap-x-5 xl:gap-y-8">
             {products.map((product) => (
                 <Link
                     to={`/product/${product._id}`}
                     key={product._id}
-                    className="group block"
+                    className="group block min-w-0"
                 >
-                    <div className="w-full aspect-[4/5] overflow-hidden rounded-xl bg-stone-100 ring-1 ring-black/5">
+                    <div className="relative aspect-[4/5] overflow-hidden rounded-2xl bg-[#f6f5f2] ring-1 ring-black/5">
                         <img
                             src={product.images?.[0]?.url}
                             alt={
                                 product.images?.[0]?.altText ||
                                 product.name
                             }
-                            className="w-full h-full object-contain p-3 transition-transform duration-500 group-hover:scale-105"
+                            loading="lazy"
+                            className="h-full w-full object-contain p-2 transition-transform duration-500 group-hover:scale-[1.04] md:p-3"
                         />
+                        {hasDiscount(product) && (
+                            <span className="absolute left-3 top-3 rounded-md bg-rabbit-red px-2 py-1 text-[10px] font-semibold text-white">
+                                -{Math.round(((product.price - getEffectivePrice(product)) / product.price) * 100)}%
+                            </span>
+                        )}
                     </div>
 
-                    <div className="mt-3">
-                        <h3 className="truncate text-[15px] font-medium text-ink transition-colors group-hover:text-rabbit-red">
+                    <div className="mt-2.5">
+                        <p className="mb-1 truncate text-[11px] font-medium text-gray-500">{product.brand || product.category}</p>
+                        <h3 className="min-h-10 text-sm font-medium leading-5 text-ink transition-colors group-hover:text-rabbit-red md:text-base">
                             {product.name}
                         </h3>
-                        <p className="mt-1 flex items-baseline gap-2 text-[15px]">
-                            <span className="font-semibold text-gray-700">{formatINR(getEffectivePrice(product))}</span>
+                        <p className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+                            <span className="font-semibold text-ink">{formatINR(getEffectivePrice(product))}</span>
                             {hasDiscount(product) && (
-                                <span className="text-sm text-gray-400 line-through">{formatINR(product.price)}</span>
+                                <span className="text-xs text-gray-400 line-through">{formatINR(product.price)}</span>
                             )}
                         </p>
+                        {product.colors?.length > 0 && (
+                            <div className="mt-2 flex items-center gap-1.5" aria-label={`Available colors: ${product.colors.join(", ")}`}>
+                                {product.colors.slice(0, 5).map((color) => {
+                                    const baseColor = color.toLowerCase().split(" ").at(-1);
+                                    const value = colorValues[color.toLowerCase()] || colorValues[baseColor] || "#d6d3d1";
+                                    return <span key={color} title={color} className="h-3.5 w-3.5 rounded-full border border-black/10" style={{ backgroundColor: value }} />;
+                                })}
+                                {product.colors.length > 5 && <span className="ml-1 text-[11px] text-gray-500">+{product.colors.length - 5}</span>}
+                            </div>
+                        )}
                     </div>
                 </Link>
             ))}

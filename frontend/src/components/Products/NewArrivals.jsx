@@ -79,39 +79,46 @@ const NewArrivals = () => {
         }, [newArrivals]);
 
   return (
-    <section className='py-16 px-4 lg:px-0'>
-        <div className="container mx-auto text-center mb-10 relative">
-            <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight mb-4">Explore New Arrivals</h2>
-            <p className="text-lg text-gray-600 mb-8">Discover the latest styles straight off the runway, freshly added to keep your wardrobe on the cutting edge of fashion!</p>
-            {/* Scroll buttons */}
-            <div className='absolute right-0 bottom-[-30px] flex space-x-2'>
-                <button onClick={() => scroll("left")} disabled={!canScrollLeft} className={`p-2 rounded-lg border border-gray-300 ${canScrollLeft ? "bg-white text-black" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>
+    <section className='py-12 md:py-16'>
+        <div className="container mx-auto mb-7 flex items-end justify-between gap-4 px-4 md:mb-9">
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-rabbit-red">Fresh picks for everyone</p>
+              <h2 className="font-display text-2xl font-bold tracking-tight md:text-4xl">New to KRAY</h2>
+              <p className="mt-2 max-w-xl text-sm text-gray-600 md:text-base">A considered mix of shirts, tops, and everyday bottoms for him and her.</p>
+            </div>
+            <div className='flex shrink-0 gap-2'>
+                <button aria-label="Scroll new arrivals left" onClick={() => scroll("left")} disabled={!canScrollLeft} className={`rounded-full border border-black/10 p-2.5 transition ${canScrollLeft ? "bg-white text-ink hover:bg-stone-100" : "bg-stone-100 text-gray-300 cursor-not-allowed"}`}>
                     <FiChevronLeft className="text-2xl" />
                 </button>
-                <button  onClick={() => scroll("right")} className={`p-2 rounded-lg border border-gray-300 ${canScrollRight ? "bg-white text-black" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>
+                <button aria-label="Scroll new arrivals right" onClick={() => scroll("right")} disabled={!canScrollRight} className={`rounded-full border border-black/10 p-2.5 transition ${canScrollRight ? "bg-white text-ink hover:bg-stone-100" : "bg-stone-100 text-gray-300 cursor-not-allowed"}`}>
                     <FiChevronRight className="text-2xl" />
                 </button>
             </div>
         </div>
 
-        {/* Scrollable content */}
-        <div ref={scrollRef} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUpOrLeave} onMouseLeave={handleMouseUpOrLeave} className={`container mx-auto overflow-x-scroll flex space-x-6 relative ${isDragging ? 'cursor-grabbing' : 'cursor-grab'} `}>
+        <div ref={scrollRef} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUpOrLeave} onMouseLeave={handleMouseUpOrLeave} className={`container mx-auto flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 md:gap-6 ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}>
             {loadError ? (
                 <p role="status" className="w-full py-8 text-center text-gray-600">New arrivals are temporarily unavailable.</p>
             ) : newArrivals.map((product) => (
-                <div key={product._id} className='min-w-full sm:min-w-[50%] lg:min-w-[30%] relative'>
-                    <img src={product.images?.[0]?.url}
-                    alt={product.images?.[0]?.altText || product.name}
-                    className='w-full h-[500px] object-cover rounded-lg'
-                    draggable={false}
-                    />
-                    <div className="absolute bottom-0 left-0 right-0 bg-opacity-50 backdrop-blur-md text-white p-4 rounded-b-lg">
-                        <Link to={`/product/${product._id}`} className="block">
-                            <h4 className='font-medium'>{product.name}</h4>
-                            <p className='mt-1'>{formatINR(getEffectivePrice(product))}</p>
+                <article key={product._id} className='w-[78%] shrink-0 snap-start sm:w-[46%] lg:w-[30%] xl:w-[24%]'>
+                    <Link to={`/product/${product._id}`} className="block overflow-hidden rounded-2xl bg-[#f6f5f2] ring-1 ring-black/5">
+                      <div className="aspect-[4/5]">
+                        <img src={product.images?.[0]?.url}
+                          alt={product.images?.[0]?.altText || product.name}
+                          className='h-full w-full object-contain p-5 transition-transform duration-500 hover:scale-[1.04] md:p-7'
+                          loading="lazy"
+                          draggable={false}
+                        />
+                      </div>
+                    </Link>
+                    <div className="pt-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">{product.gender} · {product.category}</p>
+                        <Link to={`/product/${product._id}`} className="mt-1 block font-medium text-ink hover:text-rabbit-red">
+                            <h3 className='line-clamp-1 text-sm md:text-base'>{product.name}</h3>
+                            <p className='mt-1.5 text-sm font-semibold'>{formatINR(getEffectivePrice(product))}</p>
                         </Link>
                     </div>
-                </div>
+                </article>
             ))}
         </div>
     </section>
