@@ -16,7 +16,8 @@ export const fetchProductsByFilters = createAsyncThunk(
     category,
     material,
     brand,
-    limit
+    limit,
+    page
   }) => {
     const query = new URLSearchParams();
     if (collection) query.append("collection", collection);
@@ -31,9 +32,10 @@ export const fetchProductsByFilters = createAsyncThunk(
     if (material) query.append("material", material);
     if (brand) query.append("brand", brand);
     if (limit) query.append("limit", limit);
+    if (page) query.append("page", page);
 
     const response = await axios.get(
-      `${import.meta.env.VITE_BACKEND_URL}/api/products?${query.toString()}`
+      `${import.meta.env.VITE_BACKEND_URL}/products?${query.toString()}`
     );
     return response.data;
   }
@@ -44,7 +46,7 @@ export const fetchProductDetails = createAsyncThunk(
   "products/fetchProductDetails",
   async (id) => {
     const response = await axios.get(
-      `${import.meta.env.VITE_BACKEND_URL}/api/products/${id}`
+      `${import.meta.env.VITE_BACKEND_URL}/products/${id}`
     );
     return response.data;
   }
@@ -55,7 +57,7 @@ export const updateProduct = createAsyncThunk(
   "products/updateProduct",
   async ({ id, productData }) => {
     const response = await axios.put(
-      `${import.meta.env.VITE_BACKEND_URL}/api/products/${id}`,
+      `${import.meta.env.VITE_BACKEND_URL}/products/${id}`,
       productData,
       {
         headers: {
@@ -72,7 +74,7 @@ export const fetchSimilarProducts = createAsyncThunk(
   "products/fetchSimilarProducts",
   async ({ id }) => {
     const response = await axios.get(
-      `${import.meta.env.VITE_BACKEND_URL}/api/products/similar/${id}`
+      `${import.meta.env.VITE_BACKEND_URL}/products/similar/${id}`
     );
     return response.data;
   }
@@ -85,6 +87,10 @@ const productSlice = createSlice({
     selectedProduct: null, // Store details of a single selected product
     similarProducts: [],
     loading: false,
+    loadingMore: false, // true while fetching page 2, 3, ... (the grid stays visible)
+    page: 1,
+    pages: 1,
+    total: 0,
     error: null,
     filters: {
       category: "",
@@ -123,16 +129,29 @@ const productSlice = createSlice({
   extraReducers: (builder) => {
     builder
       // Handle fetching products by filters
-      .addCase(fetchProductsByFilters.pending, (state) => {
-        state.loading = true;
+      .addCase(fetchProductsByFilters.pending, (state, action) => {
         state.error = null;
+        if (action.meta.arg?.page > 1) {
+          state.loadingMore = true;
+        } else {
+          state.loading = true;
+        }
       })
       .addCase(fetchProductsByFilters.fulfilled, (state, action) => {
         state.loading = false;
-        state.products = Array.isArray(action.payload) ? action.payload : [];
+        state.loadingMore = false;
+        // Paged responses are { products, page, pages, total }; unpaged ones are a plain array
+        const payload = action.payload;
+        const list = Array.isArray(payload) ? payload : payload?.products || [];
+        const isLoadMore = action.meta.arg?.page > 1;
+        state.products = isLoadMore ? [...state.products, ...list] : list;
+        state.page = payload?.page || 1;
+        state.pages = payload?.pages || 1;
+        state.total = payload?.total ?? list.length;
       })
       .addCase(fetchProductsByFilters.rejected, (state, action) => {
         state.loading = false;
+        state.loadingMore = false;
         state.error = action.error.message;
       })
       // Handle fetching single product details

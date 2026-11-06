@@ -1,5 +1,6 @@
 import express from "express"; // Express framework
 import Product from "../models/Product.js"; // Mongoose model (schema)
+import { effectivePriceExpr } from "../utils/pricing.js";
 import { protect, admin } from "../middleware/authMiddleware.js"; // admin = are you allowed to do admin actions? protect = who are you?
 
 const router = express.Router();
@@ -156,7 +157,7 @@ router.delete("/:id", protect, admin, async (req, res) => {
 // @access Public
 router.get("/", async (req, res) => {
     try {
-        const { collection, size, color, gender, minPrice, maxPrice, sortBy, search, category, material, brand, limit } = req.query;
+        const { collection, size, color, gender, minPrice, maxPrice, sortBy, search, category, material, brand, limit, page } = req.query;
         let query = {};
 
         // Filtering logic
@@ -180,8 +181,31 @@ router.get("/", async (req, res) => {
           query.sizes = { $in: size.split(",") };
         }
 
-        if(color) {
-            query.colors = { $in: [color] };
+        if (color) {
+            // Colour families: each filter name maps to a pattern that is matched
+            // case-insensitively against the product's colour names.
+            const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const COLOR_RULES = {
+                red: /\b(red|burgundy)\b/i,
+                // Blue excludes anything containing "navy" so Blue and Navy don't overlap
+                blue: /^(?!.*\bnavy\b).*\b(blue|dark wash)\b/i,
+                navy: /\bnavy\b/i,
+                gray: /\b(gray|grey|charcoal)\b/i,
+                beige: /\b(beige|khaki|cream)\b/i,
+                green: /\b(green|olive)\b/i,
+                brown: /\bbrown\b/i,
+                purple: /\b(purple|lavender)\b/i,
+            };
+
+            const colorPatterns = color
+                .split(",")
+                .map((c) => c.trim().toLowerCase())
+                .filter(Boolean)
+                .map((c) => COLOR_RULES[c] || new RegExp(`\\b${escapeRegex(c)}\\b`, "i"));
+
+            if (colorPatterns.length) {
+                query.colors = { $in: colorPatterns };
+            }
         }
 
         if (gender) {
@@ -192,41 +216,94 @@ router.get("/", async (req, res) => {
             query.category = category;
         }
 
-        if(minPrice || maxPrice) {
-            query.price = {};
-            if(minPrice) query.price.$gte = Number(minPrice);
-            if(maxPrice) query.price.$lte = Number(maxPrice);
-        }
+        // Price filters use the price the customer actually pays (sale price if set)
+        const priceFilter = {};
+        if (Number(minPrice) > 0) priceFilter.$gte = Number(minPrice);
+        if (Number(maxPrice) > 0) priceFilter.$lte = Number(maxPrice);
 
         if(search) {
             query.$or = [{ name: { $regex: search, $options: "i" } }, { description: { $regex: search, $options: "i" } }]; // 'i' means case sensitive
         }
 
-        // Sort logic
-        let sort = {};
-        if (sortBy) {
-            switch (sortBy) {
-                case "priceAsc":
-                    sort = { price: 1 };
-                    break;
-                case "priceDesc":
-                    sort = { price: -1 };
-                    break;
-                case "popularity":
-                    sort = { rating: -1 };
-                    break;
-                default:
-                    break;
-            }
+        // Sort logic (_id is a tie-breaker so pages never overlap or skip items)
+        let sort = { _id: 1 };
+        switch (sortBy) {
+            case "priceAsc":
+                sort = { effectivePrice: 1, _id: 1 };
+                break;
+            case "priceDesc":
+                sort = { effectivePrice: -1, _id: 1 };
+                break;
+            case "popularity":
+                sort = { rating: -1, _id: 1 };
+                break;
+            default:
+                break;
         }
 
-        // Fetch products and apply sorting and limit
-        let products = await Product.find(query).sort(sort).limit(Number(limit) || 0);
+        const pipeline = [
+            { $match: query },
+            { $addFields: { effectivePrice: effectivePriceExpr } },
+        ];
+        if (Object.keys(priceFilter).length > 0) {
+            pipeline.push({ $match: { effectivePrice: priceFilter } });
+        }
+        pipeline.push({ $sort: sort });
+
+        // Pagination is opt-in: with ?page=N the response is { products, page, pages, total }.
+        // Without it the response is a plain array, exactly as before, so existing callers keep working.
+        if (page) {
+            const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
+            const perPage = Math.min(Math.max(parseInt(limit, 10) || 12, 1), 48);
+            pipeline.push({
+                $facet: {
+                    products: [{ $skip: (pageNumber - 1) * perPage }, { $limit: perPage }],
+                    total: [{ $count: "count" }],
+                },
+            });
+            const [result] = await Product.aggregate(pipeline);
+            const total = result.total[0]?.count || 0;
+            return res.json({
+                products: result.products,
+                page: pageNumber,
+                pages: Math.ceil(total / perPage),
+                total,
+            });
+        }
+
+        if (Number(limit) > 0) pipeline.push({ $limit: Number(limit) });
+        const products = await Product.aggregate(pipeline);
         res.json(products);
 
     } catch (error) {
         console.log(error);
         res.status(500).json({ message: "Server Error!" });
+    }
+});
+
+// @route GET /api/products/filters
+// @desc Return material and brand values currently present in the product database
+// @access Public
+router.get("/filters", async (req, res) => {
+    try {
+        const [materials, brands, priceStats] = await Promise.all([
+            Product.distinct("material", { material: { $exists: true, $nin: ["", null] } }),
+            Product.distinct("brand", { brand: { $exists: true, $nin: ["", null] } }),
+            Product.aggregate([{ $group: { _id: null, max: { $max: effectivePriceExpr } } }]),
+        ]);
+        // Highest price in the catalogue, so the price slider never hides anything
+        const maxPrice = priceStats[0]?.max ? Math.ceil(priceStats[0].max) : 100;
+
+        const cleanAndSort = (values) => values
+            .filter((value) => typeof value === "string" && value.trim().length > 0)
+            .map((value) => value.trim())
+            .filter((value, index, all) => all.findIndex((item) => item.toLowerCase() === value.toLowerCase()) === index)
+            .sort((a, b) => a.localeCompare(b));
+
+        res.json({ materials: cleanAndSort(materials), brands: cleanAndSort(brands), maxPrice });
+    } catch (error) {
+        console.error("Error fetching product filter options:", error);
+        res.status(500).json({ message: "Unable to load product filter options." });
     }
 });
 

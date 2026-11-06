@@ -2,14 +2,28 @@
 import mongoose from "mongoose"; // Mongoose is an ODM (Object Data Modeling) library for MongoDB. MongoDB stores data as JSON-like documents. Mongoose lets you: define schemas, create models, validate data, query DB easily. Without Mongoose, you’d use raw MongoDB driver (more complex)
 
 // async means this function contains asynchronous operations. We can use 'await' inside it
+let connectionPromise;
+
 const connectDB = async () => {
-    try {
-        await mongoose.connect(process.env.MONGO_URI); // Pauses execution until connection succeeds or fails. Ensures DB is connected before server continues
-        console.log("MongoDB connected successfully!");
-    } catch (error) {
-        console.error("MongoDB connection failed:", error.message);
-        process.exit(1); // Exit process with failure (immediately exits the Node.js process)
+    if (!process.env.MONGO_URI) {
+        throw new Error("MONGO_URI must be configured before using the API.");
     }
-}
+
+    if (mongoose.connection.readyState === 1) return mongoose.connection;
+
+    if (!connectionPromise) {
+        connectionPromise = mongoose.connect(process.env.MONGO_URI)
+            .then(() => {
+                console.info("MongoDB connected successfully.");
+                return mongoose.connection;
+            })
+            .catch((error) => {
+                connectionPromise = undefined;
+                throw error;
+            });
+    }
+
+    return connectionPromise;
+};
 
 export default connectDB; // Exports the function so it can be used elsewhere

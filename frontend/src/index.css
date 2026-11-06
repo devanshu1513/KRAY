@@ -2,10 +2,53 @@
 
 @theme {
     --color-rabbit-red: #ea2e0e;
+    --color-neel: #1f2a6b;
+    --color-haldi: #f2a900;
+    --color-chandan: #fbf5e8;
+    --color-mor: #0e6b6b;
+    --color-ink: #1a1816;
+    --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+    --font-display: "Bricolage Grotesque", "Inter", ui-sans-serif, sans-serif;
+}
+
+html {
+    scroll-behavior: smooth;
 }
 
 #root {
-    font-family: "Inter", sans-serif;
+    font-family: var(--font-sans);
     font-optical-sizing: auto;
     font-style: normal;
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+    background: var(--color-rabbit-red);
+    color: #fff;
+}
+
+:where(a, button):focus-visible {
+    outline: 2px solid var(--color-rabbit-red);
+    outline-offset: 2px;
+}
+
+button:not(:disabled) {
+    cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, ::before, ::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+    }
+}
+
+/* Bandhani-style border: marigold dots on indigo */
+.kantha-border {
+    height: 12px;
+    background:
+        radial-gradient(circle at 7px 6px, var(--color-haldi) 2.5px, transparent 3px) 0 0 / 14px 12px repeat-x,
+        var(--color-neel);
 }

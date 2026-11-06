@@ -1,3 +1,4 @@
+import { formatINR } from "../utils/price";
 import React, { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router";
@@ -11,8 +12,11 @@ const OrderConfirmationPage = () => {
   // Clear cart when order is confirmed
   useEffect(() => {
     if(checkout && checkout._id) {
-      dispatch(clearCart());
-      localStorage.removeItem("cart");
+      // A single-item Buy Now leaves the shopper's cart as it was
+      if (checkout.fromCart !== false) {
+        dispatch(clearCart());
+        localStorage.removeItem("cart");
+      }
     }
     else {
       navigate("/my-orders");
@@ -61,7 +65,7 @@ const OrderConfirmationPage = () => {
                   <p className="text-sm text-gray-500">{item.color} | {item.size}</p>
                 </div>
                 <div className="ml-auto text-right">
-                  <p className="text-md">${item.price}</p>
+                  <p className="text-md">{formatINR(item.price)}</p>
                   <p className="text-sm text-gray-500">Qty: {item.quantity}</p>
                 </div>
               </div>

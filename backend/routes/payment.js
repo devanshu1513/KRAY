@@ -3,6 +3,8 @@ dotenv.config();
 
 import express from "express";
 import Razorpay from "razorpay";
+import Checkout from "../models/Checkout.js";
+import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
@@ -11,19 +13,42 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_SECRET,
 });
 
-router.post("/create-order", async (req, res) => {
+// The amount is read from the saved checkout, never from the browser
+router.post("/create-order", protect, async (req, res) => {
   try {
-    const { amount } = req.body;
+    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_SECRET) {
+      return res.status(503).json({ error: "Razorpay is not configured on the server." });
+    }
+
+    const { checkoutId } = req.body;
+    const checkout = await Checkout.findById(checkoutId);
+    if (!checkout) {
+      return res.status(404).json({ error: "Checkout not found" });
+    }
+    if (checkout.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: "Not allowed to pay for this checkout" });
+    }
+    if (checkout.isPaid) {
+      return res.status(400).json({ error: "This checkout is already paid" });
+    }
 
     const order = await razorpay.orders.create({
-      amount: amount * 100,
+      amount: Math.round(checkout.totalPrice * 100), // paise, always a whole number
       currency: "INR",
-      receipt: "receipt_" + Date.now(),
+      receipt: `checkout_${checkout._id}`,
     });
 
-    res.json(order);
+    // Remember which Razorpay order belongs to this checkout so /pay can match them
+    checkout.razorpayOrderId = order.id;
+    await checkout.save();
+
+    // Return the matching public key alongside the order so Checkout always
+    // uses the same Razorpay account that created it.
+    res.json({ ...order, keyId: process.env.RAZORPAY_KEY_ID });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const message = err?.error?.description || err?.message || "Razorpay could not create the payment order.";
+    console.error("Razorpay order creation failed:", message);
+    res.status(502).json({ error: message });
   }
 });
 

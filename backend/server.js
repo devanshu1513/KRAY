@@ -1,8 +1,9 @@
-// Entry point for the backend server using Express.js
-import express from "express"; // Without Express, you’d have to use raw Node.js HTTP APIs (very messy)
-import cors from "cors"; // CORS = Cross-Origin Resource Sharing. Frontend and backend run on different ports. Browsers block cross-origin requests by default. cors() allows the frontend to talk to the backend
-import dotenv from "dotenv"; // Library to load environment variables
-import connectDB from "./config/db.js"; // Custom function that connects to MongoDB database
+import "dotenv/config";
+import express from "express";
+import cors from "cors";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import connectDB from "./config/db.js";
 // Import all routes as separate imports. They will be attached with app.use() later
 import paymentRoutes from "./routes/payment.js";
 import userRoutes from "./routes/userRoutes.js";
@@ -12,20 +13,37 @@ import checkoutRoutes from "./routes/checkoutRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
 import subscribeRoute from "./routes/subscribeRoute.js";
+import shoppingAssistantRoutes from "./routes/shoppingAssistantRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import productAdminRoutes from "./routes/productAdminRoutes.js";
 import adminOrderRoutes from "./routes/adminOrderRoutes.js";
 
-dotenv.config(); // Load environment variables from .env file. Makes the .env variables available via process.env.VARIABLE_NAME
+const app = express();
+const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:5173,http://127.0.0.1:5173")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
-const app = express(); // Create an Express application and 'app' is the server object. Everything (routes, middleware) attaches to this.
-app.use(cors()); // Enable CORS for all routes globally. Every request passes through this
-app.use(express.json()); // Middleware to parse JSON bodies. Allows the server to read JSON request bodies. Without this, req.body would be undefined
-connectDB(); // Connect to MongoDB database
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error("This website origin is not allowed by the KRAY API."));
+  },
+}));
+app.use(express.json());
 
 // Define a simple route for the root URL. This is the homepage of the API (not frontend)
 app.get("/", (req, res) => {
-  res.send("Welcome to Rabbit API! This is the homepage of backend API of Rabbit MERN (full-stack) Ecommerce Website tutorial from compiletab YouTube channel! ");
+  res.send("Welcome to the KRAY API. This API powers the KRAY clothing storefront.");
+});
+
+app.use("/api", async (_req, _res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    next(error);
+  }
 });
 
 // API routes
@@ -37,13 +55,25 @@ app.use("/api/checkout", checkoutRoutes); // Use checkoutRoutes for handling che
 app.use("/api/orders", orderRoutes); // Use orderRoutes for handling order-related requests
 app.use("/api/upload", uploadRoutes); // Use uploadRoutes for handling image upload-related requests
 app.use("/api", subscribeRoute); // Use subscribeRoutes for handling subscriber-related requests
+app.use("/api/assistant", shoppingAssistantRoutes);
 
 // Admin routes
 app.use("/api/admin/users", adminRoutes); // Use adminRoutes for handling admin user management-related requests
 app.use("/api/admin/products", productAdminRoutes); // Use productAdminRoutes for handling admin product management-related requests
 app.use("/api/admin/orders", adminOrderRoutes); // Use adminOrderRoutes for handling admin order management-related requests
 
-// Start the server and listens on the specified port
-app.listen(process.env.PORT || 9000, () => {
-  console.log(`Server running on port ${process.env.PORT}`);
+app.use((error, _req, res, next) => {
+  if (res.headersSent) return next(error);
+  console.error("KRAY API request failed:", error);
+  return res.status(500).json({
+    message: process.env.NODE_ENV === "production" ? "The request could not be completed." : error.message,
+  });
 });
+
+export default app;
+
+const isDirectRun = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isDirectRun) {
+  const port = process.env.PORT || 9000;
+  app.listen(port, () => console.info(`KRAY API listening on port ${port}.`));
+}

@@ -25,7 +25,7 @@ const Home = () => {
         // Fetch best seller product
         const fetchBestSeller = async () => {
             try {
-                const response = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/products/best-seller`);
+                const response = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/products/best-seller`);
                 setBestSellerProduct(response.data);
             } catch (error) {
                 console.error('Error fetching best seller product:', error);
@@ -40,11 +40,11 @@ const Home = () => {
         <GenderCollectionSection />
         <NewArrivals />
         {/* Best seller */}
-        <h2 className='text-3xl text-center font-bold mb-4'>Best Seller</h2>
+        <h2 className='font-display text-3xl md:text-4xl font-bold tracking-tight text-center mt-8 mb-6'>Best Seller</h2>
         {bestSellerProduct ? (<ProductDetails productId={bestSellerProduct._id}/>) : (<p className='text-center'>Loading best seller product...</p>)}
 
         <div className="container mx-auto">
-          <h2 className="text-3xl text-center font-bold mb-4">Top Wears for Women</h2>
+          <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight text-center mb-10">Top Wears for Women</h2>
           <ProductGrid products={ products } loading={loading} error={error}/>
         </div>
 

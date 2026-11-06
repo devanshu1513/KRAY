@@ -2,6 +2,7 @@ import React, { useEffect } from 'react'
 import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import { formatINR, getEffectivePrice } from '../../utils/price';
 
 const NewArrivals = () => {
     const scrollRef = React.useRef(null);
@@ -15,15 +16,17 @@ const NewArrivals = () => {
     useEffect(() => {
         const fetchNewArrivals = async () => {
             try {
-                const response = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/products/new-arrivals`);
+                const response = await axios.get(
+                    `${import.meta.env.VITE_BACKEND_URL}/products/new-arrivals`
+                );
                 setNewArrivals(response.data);
             } catch (error) {
                 console.error('Error fetching new arrivals:', error);
             }
         };
+
         fetchNewArrivals();
     }, []);
-
     const handleMouseDown = (e) => {
         setIsDragging(true);
         setStartX(e.pageX - scrollRef.current.offsetLeft);
@@ -70,7 +73,7 @@ const NewArrivals = () => {
   return (
     <section className='py-16 px-4 lg:px-0'>
         <div className="container mx-auto text-center mb-10 relative">
-            <h2 className="text-3xl font-bold mb-4">Explore New Arrivals</h2>
+            <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight mb-4">Explore New Arrivals</h2>
             <p className="text-lg text-gray-600 mb-8">Discover the latest styles straight off the runway, freshly added to keep your wardrobe on the cutting edge of fashion!</p>
             {/* Scroll buttons */}
             <div className='absolute right-0 bottom-[-30px] flex space-x-2'>
@@ -95,7 +98,7 @@ const NewArrivals = () => {
                     <div className="absolute bottom-0 left-0 right-0 bg-opacity-50 backdrop-blur-md text-white p-4 rounded-b-lg">
                         <Link to={`/product/${product._id}`} className="block">
                             <h4 className='font-medium'>{product.name}</h4>
-                            <p className='mt-1'>${product.price}</p>
+                            <p className='mt-1'>{formatINR(getEffectivePrice(product))}</p>
                         </Link>
                     </div>
                 </div>

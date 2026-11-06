@@ -68,6 +68,15 @@ const checkoutSchema = new mongoose.Schema({
     finalizedAt: {
         type: Date,
     },
+    // Razorpay order created for this checkout; the payment must match it
+    razorpayOrderId: {
+        type: String,
+    },
+    // false for a single-item "Buy Now" so the shopper's cart is left untouched
+    fromCart: {
+        type: Boolean,
+        default: true,
+    },
 }, {timestamps: true});
 
 const Checkout = mongoose.model("Checkout", checkoutSchema);

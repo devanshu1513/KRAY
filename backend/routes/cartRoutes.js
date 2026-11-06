@@ -2,6 +2,7 @@ import express from "express";
 import Cart from "../models/Cart.js";
 import Product from "../models/Product.js";
 import { protect } from "../middleware/authMiddleware.js";
+import { getEffectivePrice } from "../utils/pricing.js";
 
 const router = express.Router();
 
@@ -46,7 +47,7 @@ router.post("/", async (req, res) => {
           productId,
           name: product.name,
           image: product.images[0].url,
-          price: product.price,
+          price: getEffectivePrice(product),
           size,
           color,
           quantity: parseInt(quantity),
@@ -70,13 +71,13 @@ router.post("/", async (req, res) => {
             productId,
             name: product.name,
             image: product.images[0].url,
-            price: product.price,
+            price: getEffectivePrice(product),
             size,
             color,
             quantity: parseInt(quantity),
           },
         ],
-        totalPrice: product.price * parseInt(quantity),
+        totalPrice: getEffectivePrice(product) * parseInt(quantity),
       });
       await newCart.save();
       return res.status(201).json(newCart);

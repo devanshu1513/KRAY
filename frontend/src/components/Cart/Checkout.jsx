@@ -1,9 +1,32 @@
-import React, { use, useEffect } from "react";
+import { formatINR } from "../../utils/price";
+import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import RazorpayButton from "./RazorpayButton";
 import { useDispatch, useSelector } from "react-redux";
 import { createCheckout } from "../../redux/slices/checkoutSlice";
 import axios from "axios";
+import { loadBuyNowItem, clearBuyNowItem } from "../../utils/buyNow";
+
+const DEFAULT_SHIPPING_ADDRESS = {
+  firstName: "",
+  lastName: "",
+  address: "",
+  city: "",
+  postalCode: "",
+  country: "",
+  phone: "",
+};
+
+const getInitialShippingAddress = () => {
+  try {
+    const savedAddress = sessionStorage.getItem("checkoutShippingAddress");
+    return savedAddress
+      ? { ...DEFAULT_SHIPPING_ADDRESS, ...JSON.parse(savedAddress) }
+      : DEFAULT_SHIPPING_ADDRESS;
+  } catch {
+    return DEFAULT_SHIPPING_ADDRESS;
+  }
+};
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -11,60 +34,66 @@ const Checkout = () => {
   const { cart, loading, error } = useSelector((state) => state.cart);
   const { user } = useSelector((state) => state.auth);
 
+  // "Buy Now" checks out a single item; otherwise we check out the whole cart
+  const [buyNowItem] = React.useState(() => loadBuyNowItem());
+  const items = buyNowItem ? [buyNowItem] : cart?.products || [];
+  const subtotal = Math.round(items.reduce((sum, item) => sum + item.price * item.quantity, 0) * 100) / 100;
+
   const [checkoutId, setCheckoutId] = React.useState(null);
-  const [shippingAddress, setShippingAddress] = React.useState({
-    firstName: "",
-    lastName: "",
-    address: "",
-    city: "",
-    postalCode: "",
-    country: "",
-    phone: "",
-  });
+  const [payTotal, setPayTotal] = React.useState(null); // total confirmed by the server
+  const [checkoutError, setCheckoutError] = React.useState("");
+  const total = payTotal ?? subtotal;
+  const [shippingAddress, setShippingAddress] = React.useState(getInitialShippingAddress);
 
   // Ensure cart is loaded before proceeding
   useEffect(() => {
-    if (!cart || !cart.products || cart.products.length === 0) {
+    if (items.length === 0) {
       navigate("/");
     }
-  }, [cart, navigate]);
+  }, [items.length, navigate]);
 
   const handleCreateCheckout = async (e) => {
     e.preventDefault();
-    if (cart && cart.products.length > 0) {
-      const res = await dispatch(createCheckout({
-        checkoutItems: cart.products,
-        shippingAddress,
-        paymentMethod: "Razorpay",
-        totalPrice: cart.totalPrice,
-      }));
-      if (res.payload && res.payload._id) {
-        setCheckoutId(res.payload._id); // Set checkout ID if checkout creation is successful
-      }
+    if (items.length === 0) return;
+    setCheckoutError("");
+    // Only the product, size, color and quantity matter here: the server works out the real prices
+    const res = await dispatch(createCheckout({
+      checkoutItems: items,
+      shippingAddress,
+      paymentMethod: "Razorpay",
+      fromCart: !buyNowItem,
+    }));
+    if (res.payload && res.payload._id) {
+      setCheckoutId(res.payload._id); // Set checkout ID if checkout creation is successful
+      setPayTotal(res.payload.totalPrice); // pay exactly what the server calculated
+      sessionStorage.removeItem("checkoutShippingAddress");
+    } else if (res.payload?.requiresLogin) {
+      sessionStorage.setItem("checkoutShippingAddress", JSON.stringify(shippingAddress));
+      navigate("/login?redirect=checkout");
+    } else {
+      setCheckoutError(res.payload?.message || "Could not start checkout. Please try again.");
     }
   };
 
   const handlePaymentSuccess = async (details) => {
     try {
-      const response = await axios.put(`${import.meta.env.VITE_BACKEND_URL}/api/checkout/${checkoutId}/pay`, {
-        paymentStatus: "paid", paymentDetails: details
+      await axios.put(`${import.meta.env.VITE_BACKEND_URL}/checkout/${checkoutId}/pay`, {
+        paymentDetails: details
       }, { headers: { Authorization: `Bearer ${localStorage.getItem("userToken")}` } }
     );
       await handleFinalizeCheckout(checkoutId); // Finalize checkout if payment is successful
     } catch (error) {
       console.error(error);
+      setCheckoutError(error.response?.data?.message || "We could not confirm your payment. If money was deducted, please contact support.");
     }
   };
 
   const handleFinalizeCheckout = async (checkoutId) => {
-    try {
-      const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/checkout/${checkoutId}/finalize`, {}, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("userToken")}` }
-      });
-        navigate("/order-confirmation");
-    } catch (error) {
-      console.error(error);
-    }
+    await axios.post(`${import.meta.env.VITE_BACKEND_URL}/checkout/${checkoutId}/finalize`, {}, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("userToken")}` }
+    });
+    clearBuyNowItem();
+    navigate("/order-confirmation");
   };
 
   if (loading) {
@@ -75,7 +104,7 @@ const Checkout = () => {
     return <p>Error: {error}</p>;
   }
 
-  if (!cart || !cart.products || cart.products.length === 0) {
+  if (items.length === 0) {
     return <p>Your cart is empty!</p>;
   }
 
@@ -206,6 +235,9 @@ const Checkout = () => {
             />
           </div>
           <div className="mt-6">
+            {checkoutError && (
+              <p role="alert" className="mb-3 text-sm text-rabbit-red">{checkoutError}</p>
+            )}
             {!checkoutId ? (
               <button
                 type="submit"
@@ -218,9 +250,10 @@ const Checkout = () => {
                 <h3 className="text-lg mb-4">Pay with Razorpay</h3>
                 {/* Razorpay button component */}
                 <RazorpayButton
-                  amount={cart.totalPrice}
+                  checkoutId={checkoutId}
+                  amount={total}
                   onSuccess={handlePaymentSuccess}
-                  onError={() => alert("Payment failed")}
+                  onError={(message) => setCheckoutError(message)}
                 />
               </div>
             )}
@@ -231,7 +264,7 @@ const Checkout = () => {
       <div className="bg-gray-50 p-6 rounded-lg">
         <h3 className="text-lg mb-4">Order Summary</h3>
         <div className="border-t border-gray-200 py-4 mb-4">
-          {cart.products.map((product, index) => (
+          {items.map((product, index) => (
             <div
               key={index}
               className="flex items-start justify-between py-2 border-b border-gray-200"
@@ -246,15 +279,16 @@ const Checkout = () => {
                   <h3 className="text-md">{product.name}</h3>
                   <p className="text-gray-500">Size: {product.size}</p>
                   <p className="text-gray-500">Color: {product.color}</p>
+                  <p className="text-gray-500">Qty: {product.quantity}</p>
                 </div>
               </div>
-              <p className="text-xl">${product.price?.toLocaleString()}</p>
+              <p className="text-xl">{formatINR(product.price)}</p>
             </div>
           ))}
         </div>
         <div className="flex justify-between items-center text-lg mb-4">
           <p>Subtotal</p>
-          <p>${cart.totalPrice?.toLocaleString()}</p>
+          <p>{formatINR(total)}</p>
         </div>
         <div className="flex justify-between items-center text-lg">
           <p>Shipping</p>
@@ -262,7 +296,7 @@ const Checkout = () => {
         </div>
         <div className="flex justify-between items-center text-lg mt-4 border-t pt-4">
           <p>Total</p>
-          <p>${cart.totalPrice?.toLocaleString()}</p>
+          <p>{formatINR(total)}</p>
         </div>
       </div>
     </div>

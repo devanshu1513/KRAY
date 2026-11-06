@@ -1,3 +1,4 @@
+import { formatINR } from "../../utils/price";
 import React from "react";
 import { RiDeleteBin3Line } from "react-icons/ri";
 import { useDispatch } from "react-redux";
@@ -89,7 +90,7 @@ const CartContents = ({ cart, userId, guestId }) => {
           {/* Right section */}
           <div>
             <p className="font-bold text-[16px]">
-              ${product.price.toLocaleString()}
+              {formatINR(product.price * product.quantity)}
             </p>
             <button
               onClick={() =>

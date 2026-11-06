@@ -1,4 +1,5 @@
 import React from "react";
+import { clearBuyNowItem } from "../../utils/buyNow";
 import { useNavigate } from "react-router-dom";
 import { IoMdClose } from "react-icons/io";
 import CartContents from "../Cart/CartContents";
@@ -11,6 +12,7 @@ const CartDrawer = ({ drawerOpen, toggleCartDrawer }) => {
   const userId = user ? user._id : null;
 
   const handleCheckout = () => {
+    clearBuyNowItem(); // checking out the cart, not a single Buy Now item
     toggleCartDrawer();
     if (!userId && cart.products.length > 0) {
       navigate("/login?redirect=checkout");

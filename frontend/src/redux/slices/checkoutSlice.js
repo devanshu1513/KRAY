@@ -1,17 +1,34 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
+import { logout } from "./authSlice";
 
 // Async thunk to create a checkout session
-export const createCheckout = createAsyncThunk("checkout/createCheckout", async (checkoutdata, { rejectWithValue }) => {
+export const createCheckout = createAsyncThunk("checkout/createCheckout", async (checkoutdata, { rejectWithValue, dispatch }) => {
     try {
-        const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/checkout`, checkoutdata, {
+        const token = localStorage.getItem("userToken");
+        if (!token) {
+            dispatch(logout());
+            return rejectWithValue({
+                message: "Your sign-in has expired. Please sign in again to continue checkout.",
+                requiresLogin: true,
+            });
+        }
+
+        const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/checkout`, checkoutdata, {
             headers: {
-                Authorization: `Bearer ${localStorage.getItem("userToken")}`,
+                Authorization: `Bearer ${token}`,
             },
         });
         return response.data;
     } catch (error) {
-        return rejectWithValue(error.response.data);
+        if (error.response?.status === 401) {
+            dispatch(logout());
+            return rejectWithValue({
+                message: "Your sign-in has expired. Please sign in again to continue checkout.",
+                requiresLogin: true,
+            });
+        }
+        return rejectWithValue(error.response?.data || { message: error.message || "Could not start checkout. Please try again." });
     }
 });
 
@@ -32,7 +49,7 @@ const checkoutSlice = createSlice({
             state.checkout = action.payload;
         }).addCase(createCheckout.rejected, (state, action) => {
             state.loading = false;
-            state.error = action.payload.message;
+            state.error = action.payload?.message || "Could not start checkout. Please try again.";
         })
     }
 });

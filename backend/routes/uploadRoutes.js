@@ -16,9 +16,19 @@ cloudinary.config({
 
 // Multer setup using memory storage
 const storage = multer.memoryStorage();
-const upload = multer({ storage });
+const upload = multer({ storage, limits: { fileSize: 3 * 1024 * 1024 } });
 
-router.post('/', upload.single('image'), async (req, res) => {
+router.post('/', (req, res, next) => {
+    upload.single('image')(req, res, (error) => {
+        if (error) {
+            const message = error.code === 'LIMIT_FILE_SIZE'
+                ? 'Choose a product image under 3 MB.'
+                : error.message || 'Unable to process that image.';
+            return res.status(400).json({ message });
+        }
+        next();
+    });
+}, async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ message: 'No file uploaded' });
