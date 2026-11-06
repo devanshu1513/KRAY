@@ -9,6 +9,8 @@ KRAY is a full-stack clothing e-commerce web application focused on a clean shop
 - Browse clothing products and view individual product details
 - Explore collections and new arrivals
 - Search, filter, and sort product listings
+- Ask the Gemini-powered KRAY shopping assistant for product and outfit suggestions
+- Upload a photo for AI-generated clothing and color-coordination suggestions
 - Manage a shopping cart and proceed through checkout
 - Register, sign in, and access protected account pages
 - View order history and order details
@@ -30,6 +32,8 @@ _Feature availability depends on the current configuration and implementation. P
 | Notifications and icons | Sonner, React Icons             |
 | Backend                 | Node.js, Express                |
 | Database                | MongoDB, Mongoose               |
+| AI shopping assistant   | Google Gemini API, `@google/genai` |
+| Photo uploads           | Multer in-memory processing     |
 | Authentication          | JSON Web Tokens (JWT), bcryptjs |
 | Image storage           | Cloudinary, Multer              |
 | Payments                | Razorpay (backend integration)  |
@@ -38,11 +42,29 @@ _Feature availability depends on the current configuration and implementation. P
 
 ```text
 KRAY/
-├── frontend/        # React + Vite application
-└── backend/         # Express API, database models and server routes
+├── frontend/
+│   ├── src/components/Common/ShoppingAssistant.jsx  # Chat UI, product cards, photo upload
+│   ├── src/pages/                                   # Storefront and account pages
+│   ├── src/redux/                                   # Shared application state
+│   ├── .env.example                                 # Public API URL example
+│   └── vercel.json                                  # Vite build and SPA routing
+└── backend/
+    ├── routes/shoppingAssistantRoutes.js             # Gemini assistant API
+    ├── models/Product.js                             # Product catalog for recommendations
+    ├── config/db.js                                   # Cached MongoDB connection
+    ├── .env.example                                   # Server configuration template
+    └── vercel.json                                    # Express deployment configuration
 ```
 
 The frontend contains pages, reusable UI components, Redux slices, and utilities. The backend contains API routes, authentication middleware, database configuration, and Mongoose models.
+
+## AI Shopping Assistant
+
+The floating **Ask KRAY** chat helps shoppers find products using natural-language requests about style, occasion, budget, colors, and available items. The backend fetches in-stock products from MongoDB and gives Gemini current catalog details, so recommendations can include product cards that link to KRAY product pages.
+
+Shoppers can attach a JPG, PNG, or WebP photo (up to 5 MB before browser compression) and ask for outfit or color-coordination suggestions. The browser resizes the image, and the API accepts a compressed upload up to 3 MB. KRAY processes the photo in memory and sends it to Gemini with the message; KRAY does not save the uploaded photo. The assistant is a style helper, not a sizing or body-measurement service.
+
+The integration uses Google's `@google/genai` SDK on the server. Set `GEMINI_API_KEY` in `backend/.env`; optional `GEMINI_MODEL`, `GEMINI_FALLBACK_MODEL`, and `GEMINI_LAST_RESORT_MODEL` values control the model fallback chain. Keep the key on the server and out of all `VITE_` variables.
 
 ## Getting Started
 
@@ -56,8 +78,8 @@ The frontend contains pages, reusable UI components, Redux slices, and utilities
 ### 1. Clone the repository
 
 ```bash
-git clone <YOUR_GITHUB_REPOSITORY_URL>
-cd <YOUR_REPOSITORY_FOLDER>
+git clone https://github.com/devanshu1513/KRAY.git
+cd KRAY
 ```
 
 ### 2. Configure the backend
@@ -73,6 +95,7 @@ Create a `.env` file inside `backend/`:
 PORT=9000
 MONGO_URI=your_mongodb_connection_string
 JWT_SECRET=replace_with_a_long_random_secret
+CORS_ORIGINS=http://localhost:5173
 CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
 CLOUDINARY_API_KEY=your_cloudinary_api_key
 CLOUDINARY_API_SECRET=your_cloudinary_api_secret
@@ -88,8 +111,6 @@ GEMINI_LAST_RESORT_MODEL=gemini-3.8-flash
 ```
 
 Use your own credentials. Never commit `.env` files, database credentials, API secrets, or live payment keys to GitHub.
-
-The KRAY shopping assistant uses the backend Gemini key to answer questions from the in-stock product catalog. Shoppers may also attach a JPG, PNG, or WebP photo (up to 5 MB) for outfit suggestions. Photos are processed in memory by KRAY and sent to Gemini with the shopper's message; KRAY does not save the uploaded image. Keep the key on the server; do not put it in a `VITE_` frontend variable.
 
 Start the backend development server:
 
@@ -135,9 +156,7 @@ KRAY is a monorepo with a static React storefront and an Express API. Deploy it 
 5. Set `VITE_BACKEND_URL` in the storefront project's Vercel environment variables to the API origin followed by `/api`, for example `https://kray-api.example.vercel.app/api`, then deploy.
 6. Set the backend variable `CORS_ORIGINS` to the exact storefront origin, such as `https://kray.example.vercel.app`. Include comma-separated preview origins if needed, then redeploy the API.
 
-The frontend Vercel configuration builds `dist` and serves client-side routes through `index.html`. The backend exports its Express app for Vercel Functions and waits for MongoDB before handling API requests. Keep server secrets only in the backend project's environment settings; `VITE_` variables are public in the browser bundle.
-
-Before connecting a repository, make sure it is under an account you control. The local Git remote currently points to the original tutorial repository. Create your own GitHub repository and change `origin` to that URL before pushing KRAY.
+The frontend Vercel configuration builds `dist` and serves client-side routes through `index.html`. The backend exports its Express app for Vercel Functions and waits for MongoDB before handling API requests. Both projects require Node.js 24.x. Keep server secrets only in the backend project's environment settings; `VITE_` variables are public in the browser bundle.
 
 ## Useful Commands
 
@@ -171,6 +190,7 @@ The backend exposes route groups for the following areas:
 | `/api/orders`         | Customer order operations                  |
 | `/api/payment`        | Payment-related operations                 |
 | `/api/upload`         | Image upload operations                    |
+| `/api/assistant/chat` | Gemini shopping assistant; accepts a message and optional photo |
 | `/api/admin/users`    | Admin user management                      |
 | `/api/admin/products` | Admin product management                   |
 | `/api/admin/orders`   | Admin order management                     |
