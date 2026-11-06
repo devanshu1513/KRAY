@@ -75,5 +75,16 @@ export default app;
 const isDirectRun = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isDirectRun) {
   const port = process.env.PORT || 9000;
-  app.listen(port, () => console.info(`KRAY API listening on port ${port}.`));
+  const startServer = async () => {
+    try {
+      await connectDB();
+      app.listen(port, () => console.info(`KRAY API listening on port ${port}.`));
+    } catch (error) {
+      const message = error.message.replace(/mongodb(?:\+srv)?:\/\/\S+/gi, "<redacted MongoDB URI>");
+      console.error(`KRAY API could not connect to MongoDB: ${message}`);
+      process.exitCode = 1;
+    }
+  };
+
+  startServer();
 }

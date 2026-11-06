@@ -84,7 +84,8 @@ const productSchema = new mongoose.Schema({
     user: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
-        required: true,
+        // Imported catalog products may not have an individual admin creator.
+        // Products created through the admin API still receive req.user._id.
     },
     metaTitle: {
         type: String,
