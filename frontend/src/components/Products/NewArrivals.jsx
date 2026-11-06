@@ -12,16 +12,24 @@ const NewArrivals = () => {
     const [canScrollLeft, setCanScrollLeft] = React.useState(false);
     const [canScrollRight, setCanScrollRight] = React.useState(true);
     const [newArrivals, setNewArrivals] = React.useState([]);
+    const [loadError, setLoadError] = React.useState(false);
 
     useEffect(() => {
         const fetchNewArrivals = async () => {
             try {
+                const apiUrl = import.meta.env.VITE_BACKEND_URL;
+                if (!apiUrl) throw new Error('VITE_BACKEND_URL is not configured.');
+
                 const response = await axios.get(
-                    `${import.meta.env.VITE_BACKEND_URL}/products/new-arrivals`
+                    `${apiUrl}/products/new-arrivals`
                 );
+                if (!Array.isArray(response.data)) {
+                    throw new Error('The new arrivals endpoint returned an invalid response.');
+                }
                 setNewArrivals(response.data);
             } catch (error) {
                 console.error('Error fetching new arrivals:', error);
+                setLoadError(true);
             }
         };
 
@@ -40,7 +48,7 @@ const NewArrivals = () => {
         scrollRef.current.scrollLeft = scrollLeft - walk;
     }
 
-    const handleMouseUpOrLeave = (e) => {
+    const handleMouseUpOrLeave = () => {
         setIsDragging(false);
     }
 
@@ -88,10 +96,12 @@ const NewArrivals = () => {
 
         {/* Scrollable content */}
         <div ref={scrollRef} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUpOrLeave} onMouseLeave={handleMouseUpOrLeave} className={`container mx-auto overflow-x-scroll flex space-x-6 relative ${isDragging ? 'cursor-grabbing' : 'cursor-grab'} `}>
-            {newArrivals.map((product) => (
+            {loadError ? (
+                <p role="status" className="w-full py-8 text-center text-gray-600">New arrivals are temporarily unavailable.</p>
+            ) : newArrivals.map((product) => (
                 <div key={product._id} className='min-w-full sm:min-w-[50%] lg:min-w-[30%] relative'>
-                    <img src={product.images[0]?.url}
-                    alt={product.images[0]?.altText || product.name} 
+                    <img src={product.images?.[0]?.url}
+                    alt={product.images?.[0]?.altText || product.name}
                     className='w-full h-[500px] object-cover rounded-lg'
                     draggable={false}
                     />

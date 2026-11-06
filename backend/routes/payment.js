@@ -8,17 +8,17 @@ import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID, // process exists only in Node.js (backend). In frontend, use different method
-  key_secret: process.env.RAZORPAY_SECRET,
-});
-
 // The amount is read from the saved checkout, never from the browser
 router.post("/create-order", protect, async (req, res) => {
   try {
     if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_SECRET) {
       return res.status(503).json({ error: "Razorpay is not configured on the server." });
     }
+
+    const razorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID, // process exists only in Node.js (backend). In frontend, use different method
+      key_secret: process.env.RAZORPAY_SECRET,
+    });
 
     const { checkoutId } = req.body;
     const checkout = await Checkout.findById(checkoutId);

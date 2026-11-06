@@ -142,8 +142,20 @@ const productSlice = createSlice({
         state.loadingMore = false;
         // Paged responses are { products, page, pages, total }; unpaged ones are a plain array
         const payload = action.payload;
-        const list = Array.isArray(payload) ? payload : payload?.products || [];
         const isLoadMore = action.meta.arg?.page > 1;
+        const list = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.products)
+            ? payload.products
+            : null;
+        if (!list) {
+          state.error = "The product service returned an invalid response.";
+          if (!isLoadMore) state.products = [];
+          state.page = 1;
+          state.pages = 1;
+          state.total = state.products.length;
+          return;
+        }
         state.products = isLoadMore ? [...state.products, ...list] : list;
         state.page = payload?.page || 1;
         state.pages = payload?.pages || 1;
@@ -161,7 +173,20 @@ const productSlice = createSlice({
       })
       .addCase(fetchProductDetails.fulfilled, (state, action) => {
         state.loading = false;
-        state.selectedProduct = action.payload;
+        const product = action.payload;
+        if (
+          !product ||
+          typeof product !== "object" ||
+          Array.isArray(product) ||
+          !Array.isArray(product.images) ||
+          !Array.isArray(product.colors) ||
+          !Array.isArray(product.sizes)
+        ) {
+          state.selectedProduct = null;
+          state.error = "The product service returned an invalid response.";
+          return;
+        }
+        state.selectedProduct = product;
       })
       .addCase(fetchProductDetails.rejected, (state, action) => {
         state.loading = false;
@@ -193,7 +218,7 @@ const productSlice = createSlice({
       })
       .addCase(fetchSimilarProducts.fulfilled, (state, action) => {
         state.loading = false;
-        state.similarProducts = action.payload;
+        state.similarProducts = Array.isArray(action.payload) ? action.payload : [];
       })
       .addCase(fetchSimilarProducts.rejected, (state, action) => {
         state.loading = false;
